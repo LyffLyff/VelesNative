@@ -2,7 +2,8 @@ name: build
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - veles_native_dev
     paths-ignore:
       - 'README.md'
 
