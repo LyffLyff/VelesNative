@@ -1,0 +1,6 @@
+[submodule "Veles"]
+	path = Veles
+	url = https://github.com/LyffLyff/Veles
+[submodule "app"]
+	path = app
+	url = https://github.com/LyffLyff/Veles
