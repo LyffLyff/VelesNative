@@ -349,7 +349,7 @@ public:
         if (mp4_tag == NULL) { return godot::PoolByteArray(); }
 
         unsigned int counter = 0;
-        TagLib::MP4::CoverArtList covers = mp4_tag->itemListMap()["covr"].toCoverArtList();
+        TagLib::MP4::CoverArtList covers = mp4_tag->itemMap()["covr"].toCoverArtList();
         for (TagLib::MP4::CoverArtList::ConstIterator it = covers.begin(); it != covers.end(); it++) {
             if (counter == cover_idx) {
                 return ByteVector2PoolByte((*it).data());
@@ -365,7 +365,7 @@ public:
         TagLib::MP4::File mp4_file(gd_string_to_filename(filepath));
         if (mp4_file.isOpen() && mp4_file.hasMP4Tag()) {
             TagLib::MP4::Tag* mp4_tag = mp4_file.tag();
-            TagLib::MP4::CoverArtList covers = mp4_tag->itemListMap()["covr"].toCoverArtList();
+            TagLib::MP4::CoverArtList covers = mp4_tag->itemMap()["covr"].toCoverArtList();
             for (TagLib::MP4::CoverArtList::ConstIterator it = covers.begin(); it != covers.end(); it++) {
                 cover_data.push_back(ByteVector2PoolByte((*it).data()));
             }
@@ -382,7 +382,7 @@ public:
         if (mp4_tag == NULL) { return 0; }
         
         godot::Godot::print("VALID MP4TAG");
-        return mp4_tag->itemListMap()["covr"].toCoverArtList().size();
+        return mp4_tag->itemMap()["covr"].toCoverArtList().size();
     }
 };
 
@@ -677,19 +677,17 @@ public:
             TagLib::MP4::CoverArt coverArt((TagLib::MP4::CoverArt::Format)0x0D, imageFile.data());
             TagLib::MP4::File audioFile(gd_string_to_filename(audiopath));
             TagLib::MP4::Tag* tag = audioFile.tag();
-            TagLib::MP4::ItemListMap itemsListMap = tag->itemListMap();
+            TagLib::MP4::ItemMap itemsListMap = tag->itemMap();
 
             // create cover art list
             TagLib::MP4::CoverArtList coverArtList;
 
             // append instance
-            coverArtList.append(coverArt);
+            coverArtList = coverArtList.append(coverArt);
 
-            // convert to item
-            TagLib::MP4::Item coverItem(coverArtList);
 
             // add item to map
-            itemsListMap.insert("covr", coverItem);
+            tag->setItem("covr", coverArtList);
 
             tag->save();
             audioFile.save();
@@ -735,7 +733,7 @@ public:
             TagLib::MP4::Tag* tag = audioFile.tag();
 
             // get the items map
-            TagLib::MP4::ItemListMap itemsListMap = tag->itemListMap();
+            TagLib::MP4::ItemMap itemsListMap = tag->itemMap();
 
             // create cover art list
             TagLib::MP4::CoverArtList coverArtList;
@@ -743,11 +741,17 @@ public:
             // append instance
             coverArtList =  itemsListMap.value("covr").toCoverArtList();
 
-            // convert to item
-            TagLib::MP4::Item coverItem(coverArtList);
+            unsigned int counter = 0;
+            for (TagLib::MP4::CoverArtList::Iterator it = coverArtList.begin(); it != coverArtList.end(); it++) {
+                if (counter == cover_idx) {
+                    coverArtList.erase(it);
+                    break;
+                }
+                counter += 1;
+            }
 
-            // add item to map
-            itemsListMap.insert("covr", coverItem);
+            // updating items
+            tag->setItem("covr", coverArtList);
 
             tag->save();
             audioFile.save();
@@ -803,7 +807,7 @@ public:
             TagLib::MP4::Tag* tag = audioFile.tag();
 
             // get the items map
-            TagLib::MP4::ItemListMap itemsListMap = tag->itemListMap();
+            TagLib::MP4::ItemMap itemsMap = tag->itemMap();
 
             // create cover art list
             TagLib::MP4::CoverArtList coverArtList;
