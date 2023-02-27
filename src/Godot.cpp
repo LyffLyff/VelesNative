@@ -216,8 +216,8 @@ public:
         TagLib::MPEG::File audioFile(gd_string_to_filename(dst_path));
         TagLib::ID3v2::Tag* tag = audioFile.ID3v2Tag(true);
         TagLib::ID3v2::FrameList AttachedCovers = tag->frameListMap()["APIC"];
-        ImageFile image = ImageFile(gd_string_to_filename(src_path));
-        tag->addFrame(create_apic_frame(image.data(), mime_type.alloc_c_string()));
+        ImageFile * image = new ImageFile(gd_string_to_filename(src_path));
+        tag->addFrame(create_apic_frame(image->data(), mime_type.alloc_c_string()));
         audioFile.save();
     }
 
@@ -276,9 +276,9 @@ public:
     void add_cover(godot::String dst_path, godot::String src_path, godot::String mime_type) {
         TagLib::Ogg::Vorbis::File ogg_file(gd_string_to_filename(dst_path));
         TagLib::Ogg::XiphComment* tag = ogg_file.tag();
-        ImageFile image = ImageFile(gd_string_to_filename(src_path));
-        if (image.isOpen()) {
-            tag->addPicture(create_flac_picture(image.data(), mime_type.alloc_c_string()));
+        ImageFile * image = new ImageFile(gd_string_to_filename(src_path));
+        if (image->isOpen()) {
+            tag->addPicture(create_flac_picture(image->data(), mime_type.alloc_c_string()));
             ogg_file.save();
         }
         else {
@@ -299,7 +299,7 @@ public:
         TagLib::List<TagLib::FLAC::Picture*> pictures = vorbis_tag->pictureList();
         for (TagLib::List<TagLib::FLAC::Picture*>::ConstIterator it = pictures.begin(); it != pictures.end(); it++) {
             if (counter == cover_idx) {
-                return ByteVector2PoolByte((*it)->render());
+                return ByteVector2PoolByte((*it)->data());
             }
             counter += 1;
         }
@@ -405,8 +405,8 @@ public:
 
     void add_cover(godot::String dst_path, godot::String src_path, godot::String mime_type) {
         TagLib::FLAC::File FLACFile(gd_string_to_filename(dst_path));
-        ImageFile image = ImageFile(gd_string_to_filename(src_path));
-        FLACFile.addPicture(create_flac_picture(image.data(), mime_type.alloc_c_string()));
+        ImageFile * image = new ImageFile(gd_string_to_filename(src_path));
+        FLACFile.addPicture(create_flac_picture(image->data(), mime_type.alloc_c_string()));
         FLACFile.save();
     }
 
@@ -467,7 +467,7 @@ public:
         TagLib::MP4::CoverArtList covers = mp4_tag->itemMap()["covr"].toCoverArtList();
         for (TagLib::MP4::CoverArtList::ConstIterator it = covers.begin(); it != covers.end(); it++) {
             if (counter == cover_idx) {
-                return ByteVector2PoolByte((*it).data());
+                return ByteVector2PoolByte(it->data());
             }
             counter += 1;
         }
@@ -518,7 +518,7 @@ public:
             TagLib::MP4::Tag* mp4_tag = mp4_file.tag();
             TagLib::MP4::CoverArtList covers = mp4_tag->itemMap()["covr"].toCoverArtList();
             for (TagLib::MP4::CoverArtList::ConstIterator it = covers.begin(); it != covers.end(); it++) {
-                cover_data.push_back(ByteVector2PoolByte((*it).data()));
+                cover_data.push_back(ByteVector2PoolByte(it->data()));
             }
         }
         return cover_data;
