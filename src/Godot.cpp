@@ -73,7 +73,7 @@ bool save_buffer_to_file(TagLib::String dst_path, TagLib::ByteVector & data) {
 }
 
 
-TagLib::FLAC::Picture* create_flac_picture(TagLib::ByteVector & image_data, TagLib::String mime_type) {
+TagLib::FLAC::Picture* create_flac_picture(TagLib::ByteVector && image_data, TagLib::String mime_type) {
     TagLib::FLAC::Picture* new_picture = new TagLib::FLAC::Picture;
     new_picture->setData(image_data);
     new_picture->setMimeType(mime_type);
@@ -81,7 +81,7 @@ TagLib::FLAC::Picture* create_flac_picture(TagLib::ByteVector & image_data, TagL
 }
 
 
-TagLib::ID3v2::AttachedPictureFrame* create_apic_frame(TagLib::ByteVector & data, TagLib::String mime_type) {
+TagLib::ID3v2::AttachedPictureFrame* create_apic_frame(TagLib::ByteVector && data, TagLib::String mime_type) {
     TagLib::ID3v2::AttachedPictureFrame* new_frame = new TagLib::ID3v2::AttachedPictureFrame;
     new_frame->setMimeType(mime_type);
     new_frame->setPicture(data);
