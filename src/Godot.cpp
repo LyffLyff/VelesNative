@@ -37,7 +37,7 @@ TagLib::String gd_2_taglib_string(godot::String g_string) {
 }
 
 
-godot::PoolByteArray ByteVector2PoolByte(TagLib::ByteVector & data) {
+godot::PoolByteArray ByteVector2PoolByte(TagLib::ByteVector && data) {
     godot::PoolByteArray x;
     for (size_t i = 0; i < data.size(); i++) {
         x.push_back(data[i]);
