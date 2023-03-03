@@ -39,9 +39,9 @@ jobs:
   remove-old-artifacts:
     needs: [build]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
     - name: remove-old-artifacts
       uses: c-hive/gha-remove-artifacts@v1
       with:
-        age: '10 minutes'
+        age: '15 minutes'
