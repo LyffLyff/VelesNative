@@ -27,7 +27,7 @@ endif()
 
 include(${CMAKE_BINARY_DIR}/conan.cmake)
  
-conan_cmake_configure(REQUIRES godot-cpp/3.3@local/stable taglib/1.13 GENERATORS cmake_find_package)
+conan_cmake_configure(REQUIRES godot-cpp/3.3@local/stable taglib/1.13:13532d706aa77b464406f55bc2f6f1c2afb3d200 GENERATORS cmake_find_package)
 
 conan_cmake_autodetect(settings)
 
@@ -67,7 +67,7 @@ if(APPLE)
   set_target_properties(
     Veles
     PROPERTIES 
-    OSX_ARCHITECTURES "x86_64")
+    OSX_ARCHITECTURES "arm64;x86_64")
 endif()
 
 install(TARGETS Veles DESTINATION .)
