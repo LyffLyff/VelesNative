@@ -67,7 +67,7 @@ if(APPLE)
   set_target_properties(
     Veles
     PROPERTIES 
-    OSX_ARCHITECTURES "x86_64")
+    OSX_ARCHITECTURES "armv8;x86_64")
 endif()
 
 install(TARGETS Veles DESTINATION .)
