@@ -56,7 +56,7 @@ static TagLib::String get_extension(TagLib::String file_path) {
 }
 
 
-bool save_buffer_to_file(godot::String dst_path, TagLib::ByteVector & data) {
+bool save_buffer_to_file(godot::String dst_path, TagLib::ByteVector data) {
     FILE* fout = fopen(dst_path.alloc_c_string(), "wb");
     if (!fout) { return false; }
     fwrite(data.data(), data.size(), 1, fout);
@@ -260,15 +260,11 @@ public:
 
     bool copy_first_cover(godot::String audio_filepath, godot::String dst_filepath) {
         TagLib::MPEG::File mpeg_file(gd_string_to_filename(audio_filepath));
-        godot::Godot::print(gd_string_to_filename(audio_filepath).toString().toCString());
         if (!mpeg_file.isValid()) { return false; }
-        godot::Godot::print("YPP");
         TagLib::ID3v2::Tag* mpeg_tag = mpeg_file.ID3v2Tag();
         if (mpeg_tag == NULL) { return false; }
-        godot::Godot::print("YPP");
         TagLib::ID3v2::FrameList listOfMp3Frames = mpeg_tag->frameListMap()["APIC"];//look for picture frames only
         if (listOfMp3Frames.isEmpty()) { return false; }
-        godot::Godot::print("YPP");
         TagLib::ByteVector image_data = static_cast<TagLib::ID3v2::AttachedPictureFrame*> (listOfMp3Frames.front())->picture();
         save_buffer_to_file(dst_filepath, image_data);
     }
