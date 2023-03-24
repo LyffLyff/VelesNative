@@ -28,16 +28,17 @@
 #include <vorbisfile.h>
 #include <synchronizedlyricsframe.h>
 #include <unsynchronizedlyricsframe.h>
+#include <textidentificationframe.h>
 #include <popularimeterframe.h>
 #include <tpropertymap.h>
 
 
 godot::PoolByteArray ByteVector2PoolByte(TagLib::ByteVector && data) {
-    godot::PoolByteArray x = godot::PoolByteArray();
-    for (size_t i = 0; i < data.size(); i++) {
-        x.push_back(data[i]);
-    }
-    return x;
+    godot::PoolByteArray converted_buffer = godot::PoolByteArray();
+    const  char* original_buffer = data.data();
+    converted_buffer.resize(data.size());
+    memcpy((uint8_t*)converted_buffer.write().ptr(), original_buffer, data.size());
+    return converted_buffer;
 }
 
 
@@ -167,8 +168,11 @@ public:
         register_method("add_cover", &MPEG::add_cover);
         register_method("remove_cover", &MPEG::remove_cover);
         register_method("remove_all_covers", &MPEG::remove_all_covers);
-        register_method("copy_first_cover", &MPEG::copy_first_cover);
+        register_method("copy_cover", &MPEG::copy_cover);
         register_method("get_embedded_cover_count", &MPEG::get_embedded_cover_count);
+        register_method("remove_tag", &MPEG::remove_tag);
+        register_method("remove_tag", &MPEG::remove_tag);
+        register_method("set_text_identification_frame", &MPEG::set_text_identification_frame);
     }
 
     godot::PoolByteArray get_cover(godot::String audio_filepath, unsigned int cover_idx) {
@@ -258,14 +262,16 @@ public:
     }
 
 
-    bool copy_first_cover(godot::String audio_filepath, godot::String dst_filepath) {
+    bool copy_cover(godot::String audio_filepath, godot::String dst_filepath, unsigned int cover_idx) {
         TagLib::MPEG::File mpeg_file(gd_string_to_filename(audio_filepath));
         if (!mpeg_file.isValid()) { return false; }
         TagLib::ID3v2::Tag* mpeg_tag = mpeg_file.ID3v2Tag();
         if (mpeg_tag == NULL) { return false; }
         TagLib::ID3v2::FrameList listOfMp3Frames = mpeg_tag->frameListMap()["APIC"];//look for picture frames only
         if (listOfMp3Frames.isEmpty()) { return false; }
-        TagLib::ByteVector image_data = static_cast<TagLib::ID3v2::AttachedPictureFrame*> (listOfMp3Frames.front())->picture();
+        TagLib::ByteVector image_data = static_cast<TagLib::ID3v2::AttachedPictureFrame*> (listOfMp3Frames[cover_idx])->picture();
+        godot::Godot::print("kkdkdk");
+        godot::Godot::print(dst_filepath);
         save_buffer_to_file(dst_filepath, image_data);
     }
 
@@ -278,6 +284,39 @@ public:
         TagLib::ID3v2::Tag* mpeg_tag = mpeg_file.ID3v2Tag();
         return mpeg_tag->frameListMap()["APIC"].size();
     }
+
+
+    bool set_text_identification_frame(godot::String audio_filepath,  godot::String frame_id, godot::String frame_text){
+        // frame id -> "TCOM"/Composer,....... -> https://taglib.org/api/classTagLib_1_1ID3v2_1_1TextIdentificationFrame.html
+        TagLib::MPEG::File mpeg_file(gd_string_to_filename(audio_filepath));
+
+        if (!mpeg_file.isValid()) { return false; }
+
+        TagLib::ID3v2::Tag* mpeg_tag = mpeg_file.ID3v2Tag(true);
+
+        if (!mpeg_tag) { return false; }
+
+        TagLib::ID3v2::FrameList frames = mpeg_tag->frameListMap()[frame_id.alloc_c_string()];
+        if (frames.size() == 0) {
+            TagLib::ID3v2::TextIdentificationFrame* frame = new TagLib::ID3v2::TextIdentificationFrame(frame_id.alloc_c_string(), TagLib::String::UTF8);
+            frame->setText(TagLib::String(frame_text.alloc_c_string(), TagLib::String::UTF8));
+            mpeg_tag->addFrame(frame);
+        }
+        else {
+            frames[0]->setText(TagLib::String(frame_text.alloc_c_string(), TagLib::String::UTF8));
+        }
+
+        return mpeg_file.save();
+    }
+
+
+    bool remove_tag(godot::String audio_filepath) {
+        TagLib::MPEG::File mpeg_file(gd_string_to_filename(audio_filepath));
+        if (!mpeg_file.isValid()) { return false; }
+        mpeg_file.strip(TagLib::MPEG::File::AllTags, true);
+        return mpeg_file.save();
+    }
+
 };
 
 
@@ -289,9 +328,12 @@ public:
         register_method("get_cover", &OGG_VORBIS::get_cover);
         register_method("get_covers", &OGG_VORBIS::get_covers);
         register_method("add_cover", &OGG_VORBIS::add_cover);
+        register_method("copy_cover", &OGG_VORBIS::copy_cover);
         register_method("remove_cover", &OGG_VORBIS::remove_cover);
         register_method("remove_all_covers", &OGG_VORBIS::remove_all_covers);
         register_method("get_embedded_cover_count", &OGG_VORBIS::get_embedded_cover_count);
+        register_method("remove_tag", &OGG_VORBIS::remove_tag);
+        register_method("set_field", &OGG_VORBIS::set_field);
     }
 
 
@@ -381,14 +423,14 @@ public:
     }
 
 
-    bool copy_first_cover(godot::String audio_filepath, godot::String dst_filepath) {
+    bool copy_cover(godot::String audio_filepath, godot::String dst_filepath, unsigned int cover_idx) {
         TagLib::Ogg::Vorbis::File vorbis_file(gd_string_to_filename(audio_filepath));
         if (!vorbis_file.isOpen()) { return false; }
 
         TagLib::Ogg::XiphComment* vorbis_tag = vorbis_file.tag();
         if (vorbis_tag->isEmpty()) { return false; }
 
-        TagLib::FLAC::Picture* first_embedded_cover = vorbis_tag->pictureList().front();
+        TagLib::FLAC::Picture* first_embedded_cover = vorbis_tag->pictureList()[cover_idx];
         if (first_embedded_cover == NULL) { return false; }
 
         save_buffer_to_file(dst_filepath, first_embedded_cover->data());
@@ -398,12 +440,32 @@ public:
     unsigned int get_embedded_cover_count(godot::String audio_filepath) {
         // returns the amount of embedded covers within file
         TagLib::Ogg::Vorbis::File vorbis_file(gd_string_to_filename(audio_filepath));
-        if (!vorbis_file.isOpen()) { return 0; };
+        if (!vorbis_file.isValid()) { return 0; };
         
         TagLib::Ogg::XiphComment* vorbis_tag = vorbis_file.tag();
         if (vorbis_tag == NULL) { return 0; };
         
         return vorbis_tag->pictureList().size();
+    }
+
+    bool set_field(godot::String audio_filepath, godot::String field_id, godot::String field_data) {
+        TagLib::Ogg::Vorbis::File vorbis_file(gd_string_to_filename(audio_filepath));
+        if (!vorbis_file.isValid()) { return false; };
+
+        TagLib::Ogg::XiphComment* vorbis_tag = vorbis_file.tag();
+        if (vorbis_tag == NULL) { return false; };
+
+        vorbis_tag->addField(field_id.alloc_c_string(), field_data.alloc_c_string(), true);
+
+        vorbis_file.save();
+    }
+
+
+    void remove_tag(godot::String audio_filepath) {
+        TagLib::Ogg::Vorbis::File vorbis_file(gd_string_to_filename(audio_filepath));
+        if (!vorbis_file.isOpen()) { return; };
+        vorbis_file.tag()->removeAllFields();
+        vorbis_file.save();
     }
 };
 
@@ -415,10 +477,13 @@ public:
     static void _register_methods() {
         register_method("get_cover", &FLAC::get_cover);
         register_method("get_covers", &FLAC::get_covers);
+        register_method("copy_cover", &FLAC::copy_cover);
         register_method("add_cover", &FLAC::add_cover);
         register_method("remove_cover", &FLAC::remove_cover);
         register_method("remove_all_covers", &FLAC::remove_all_covers);
         register_method("get_embedded_cover_count", &FLAC::get_embedded_cover_count);
+        register_method("remove_tag", &FLAC::remove_tag);
+        register_method("set_property", &FLAC::set_property);
     }
 
 
@@ -478,8 +543,6 @@ public:
         if (!flac_file.isOpen()) { return false; }
         
         unsigned int counter = 0;
-        godot::Godot::print("REMOVE CCC");
-        godot::Godot::print(std::to_string(cover_idx).c_str());
         TagLib::List<TagLib::FLAC::Picture*> pictures = flac_file.pictureList();
         for (TagLib::List<TagLib::FLAC::Picture*>::ConstIterator it = pictures.begin(); it != pictures.end(); it++) {
             if (counter == cover_idx) {
@@ -493,11 +556,11 @@ public:
     }
 
 
-    bool copy_first_cover(godot::String audio_filepath, godot::String dst_filepath) {
+    bool copy_cover(godot::String audio_filepath, godot::String dst_filepath, unsigned int cover_idx) {
         TagLib::FLAC::File flac_file(gd_string_to_filename(audio_filepath));
         if (!flac_file.isValid()) { return false; }
 
-        TagLib::FLAC::Picture* first_embedded_cover = flac_file.pictureList().front();
+        TagLib::FLAC::Picture* first_embedded_cover = flac_file.pictureList()[cover_idx];
         if (first_embedded_cover == NULL) { return false; }
 
         save_buffer_to_file(dst_filepath, first_embedded_cover->data());
@@ -512,6 +575,26 @@ public:
         return flac_file.pictureList().size();
     }
 
+
+    void remove_tag(godot::String audio_filepath) {
+        TagLib::FLAC::File flac_file(gd_string_to_filename(audio_filepath));
+        if (!flac_file.isValid()) { return; }
+        flac_file.strip(TagLib::FLAC::File::AllTags);
+        flac_file.save();
+    }
+
+
+    bool set_property(godot::String audio_filepath, godot::String field_id, godot::String field_data) {
+        TagLib::FLAC::File flac_file(gd_string_to_filename(audio_filepath));
+        if (!flac_file.isValid()) { return false; }
+
+        TagLib::Tag * flac_tag = flac_file.tag();
+        if (flac_tag == NULL) { return false; };
+   
+        flac_file.xiphComment(true)->addField(field_id.alloc_c_string(), field_data.alloc_c_string(), true);
+
+        return flac_file.save();
+    }
 };
 
 
@@ -525,6 +608,8 @@ public:
         register_method("insert_cover", &MP4::insert_cover);
         register_method("add_cover", &MP4::add_cover);
         register_method("get_embedded_cover_count", &MP4::get_embedded_cover_count);
+        register_method("remove_tag", &MP4::remove_tag);
+        register_method("set_item", &MP4::set_item);
     }
 
     godot::PoolByteArray get_cover(godot::String filepath, unsigned int cover_idx) {
@@ -586,7 +671,6 @@ public:
 
 
     bool add_cover(godot::String dst_path, godot::String src_path) {
-        godot::Godot::print("START");
         ImageFile image(gd_string_to_filename(src_path));
         if (!image.isOpen()) {
             godot::Godot::print("ERROR://MP4, Could not open Image");
@@ -630,8 +714,28 @@ public:
         TagLib::MP4::Tag* mp4_tag = mp4_file.tag();
         if (mp4_tag == NULL) { return 0; }
         
-        godot::Godot::print("VALID MP4TAG");
         return mp4_tag->itemMap()["covr"].toCoverArtList().size();
+    }
+
+
+    bool set_item(godot::String audio_filepath, godot::String item_key, godot::String item_value) {
+        TagLib::MP4::File mp4_file(gd_string_to_filename(audio_filepath));
+        if (!mp4_file.isOpen()) { return false; }
+
+        TagLib::MP4::Tag* mp4_tag = mp4_file.tag();
+        if (mp4_tag == NULL) { return false; }
+
+        mp4_tag->setItem(item_key.alloc_c_string(), item_value.alloc_c_string());
+
+        return mp4_file.save();
+    }
+
+
+    void remove_tag(godot::String filepath) {
+        TagLib::MP4::File mp4_file(gd_string_to_filename(filepath));
+        if (!mp4_file.isValid()) { return; }
+        mp4_file.strip(TagLib::MP4::File::AllTags);
+        mp4_file.save();
     }
 };
 
@@ -645,8 +749,6 @@ class Tagging : public godot::Reference{
 
 public:
     static void _register_methods(){
-        register_method("get_song_popularity", &Tagging::get_song_popularity);
-        register_method("set_song_popularity", &Tagging::set_song_popularity);
         register_method("get_multiple_tags", &Tagging::get_multiple_tags);
         register_method("get_single_tag", &Tagging::get_single_tag);
         register_method("copy_covers", &Tagging::copy_covers);
@@ -654,6 +756,7 @@ public:
         register_method("set_tag", &Tagging::set_tag);
         register_method("add_cover", &Tagging::add_cover);
         register_method("remove_cover", &Tagging::remove_cover);
+        register_method("remove_tag", &Tagging::remove_tag);
         register_method("remove_all_covers", &Tagging::remove_all_covers);
         register_method("get_embedded_cover", &Tagging::get_embedded_cover);
         register_method("get_embedded_covers", &Tagging::get_embedded_covers);
@@ -662,6 +765,9 @@ public:
         register_method("get_cover_description", &Tagging::get_cover_description);
         register_method("set_cover_description", &Tagging::set_cover_description);
         register_method("get_embedded_cover_count", &Tagging::get_embedded_cover_count);
+        register_method("get_song_popularity", &Tagging::get_song_popularity);
+        register_method("set_song_popularity", &Tagging::set_song_popularity);
+        register_method("add_property", &Tagging::add_property);
     }
 
     void _init()
@@ -682,14 +788,11 @@ public:
         return get_tag_data(path, tagmap);
     }
 
-    godot::PoolByteArray copy_covers(godot::PoolStringArray src_paths, godot::PoolStringArray dst_paths) {
+    godot::PoolByteArray copy_covers(godot::PoolStringArray src_paths, godot::PoolStringArray dst_paths, unsigned int cover_idx) {
         //TagLib::ByteVector TempByteData;
         godot::PoolByteArray return_values;
-        godot::Godot::print("IN THE DUCK");
-        godot::Godot::print(src_paths[0]);
-        godot::Godot::print(dst_paths[0]);
         for (size_t i = 0; i < src_paths.size(); i++) {
-            return_values.push_back(copy_cover(src_paths[i], dst_paths[i]));
+            return_values.push_back(copy_cover(src_paths[i], dst_paths[i], cover_idx));
         }
         return return_values;
     }
@@ -827,17 +930,17 @@ public:
     }
 
 
-    bool copy_cover(godot::String audio_filepath, godot::String dst_filepath) {
+    bool copy_cover(godot::String audio_filepath, godot::String dst_filepath, unsigned int cover_idx = 0) {
         godot::String filetype = get_file_extension(audio_filepath);
 
         if (filetype == "MP3" || filetype == "WAV") {
-            return MPEG().copy_first_cover(audio_filepath, dst_filepath);
+            return MPEG().copy_cover(audio_filepath, dst_filepath, cover_idx);
         }
         else if (filetype == "OGG") {
-            return OGG_VORBIS().copy_first_cover(audio_filepath, dst_filepath);
+            return OGG_VORBIS().copy_cover(audio_filepath, dst_filepath, cover_idx);
         }
         else if (filetype == "FLAC") {
-            return FLAC().copy_first_cover(audio_filepath, dst_filepath);
+            return FLAC().copy_cover(audio_filepath, dst_filepath, cover_idx);
         }
         else{
             // Invalid file extension
@@ -1013,6 +1116,23 @@ public:
     }
 
 
+    void remove_tag(godot::String audio_filepath) {
+        godot::String filetype = get_file_extension(audio_filepath);
+        if (filetype == "MP3" || filetype == "WAV") {
+            MPEG().remove_tag(audio_filepath);
+        }
+        else if (filetype == "OGG") {
+            OGG_VORBIS().remove_tag(audio_filepath);
+        }
+        else if (filetype == "FLAC") {
+            FLAC().remove_tag(audio_filepath);
+        }
+        else if (filetype == "M4A" || filetype == "MP4") {
+            MP4().remove_tag(audio_filepath);
+        }
+    }
+
+
     void set_lyrics(godot::String audio_filepath, godot::PoolStringArray verses, godot::PoolIntArray timestamps, bool IsSynchronized) {
         std::string FrameTitle = "";
         if (IsSynchronized) {
@@ -1146,20 +1266,17 @@ public:
 
 
     void set_song_popularity(godot::String audio_filepath, int rating_out_of_10 = -1, int Counter = -1, godot::String Email = "") {
-        
         godot::String filetype = get_file_extension(audio_filepath);
-        
         if (filetype == "MP3" || filetype == "WAV") {
-            
-            TagLib::MPEG::File ID3file(gd_string_to_filename(audio_filepath));
-            TagLib::ID3v2::Tag* ID3Tag = ID3file.ID3v2Tag();
-            
-            if (ID3Tag == NULL) { return; }
-            TagLib::ID3v2::FrameList RatingFrames = ID3Tag->frameListMap()["POPM"];
+            godot::PoolStringArray frame_data = get_song_popularity(audio_filepath);
+            TagLib::MPEG::File mpeg_file(gd_string_to_filename(audio_filepath));
+            if (!mpeg_file.isValid() || !mpeg_file.hasID3v2Tag()) { return; }
+            TagLib::ID3v2::Tag* mpeg_tag = mpeg_file.ID3v2Tag();
+            if (mpeg_tag == NULL) { return; }
+            TagLib::ID3v2::FrameList RatingFrames = mpeg_tag->frameListMap()["POPM"];
             TagLib::ID3v2::PopularimeterFrame* rating_frame = new TagLib::ID3v2::PopularimeterFrame();
             if (RatingFrames.size() > 0) {
-                godot::PoolStringArray frame_data = get_song_popularity(audio_filepath);
-                ID3Tag->removeFrames("POPM");
+                mpeg_tag->removeFrames("POPM");
                 rating_frame->setRating(std::stoi(frame_data[0].alloc_c_string()));
                 rating_frame->setCounter(std::stoi(frame_data[1].alloc_c_string()));
                 rating_frame->setEmail(frame_data[1].alloc_c_string());
@@ -1170,18 +1287,18 @@ public:
             if (rating_out_of_10 != -1) { rating_frame->setRating(rating_out_of_10); }
             if (Counter != -1) { rating_frame->setCounter(Counter); }
                 
-            ID3Tag->addFrame(static_cast<TagLib::ID3v2::Frame*>(rating_frame));
-            ID3file.save();
+            mpeg_tag->addFrame(static_cast<TagLib::ID3v2::Frame*>(rating_frame));
+            mpeg_file.save();
             return;
         }
         else if (filetype == "OGG") {
             //Adding using custom fields -> non standarddized way
-            TagLib::Ogg::Vorbis::File OggFile(gd_string_to_filename(audio_filepath));
-            TagLib::Ogg::XiphComment* OggTag = OggFile.tag();
-            if (rating_out_of_10 != -1) { OggTag->addField("Rating", std::to_string(rating_out_of_10), true); }
-            if (Counter != -1) { OggTag->addField("Counter", std::to_string(Counter), true); }
-            if (Email != "") { OggTag->addField("Email", Email.alloc_c_string(), true); }
-            OggFile.save();
+            TagLib::Ogg::Vorbis::File vorbis_file(gd_string_to_filename(audio_filepath));
+            TagLib::Ogg::XiphComment* vorbis_tag = vorbis_file.tag();
+            if (rating_out_of_10 != -1) { vorbis_tag->addField("Rating", std::to_string(rating_out_of_10), true); }
+            if (Counter != -1) { vorbis_tag->addField("Counter", std::to_string(Counter), true); }
+            if (Email != "") { vorbis_tag->addField("Email", Email.alloc_c_string(), true); }
+            vorbis_file.save();
         }
     }
 
@@ -1194,10 +1311,9 @@ public:
        
         if (filetype == "MP3" || filetype == "WAV") {
             // reading the rating from the frame Popularitymeter POPM if existing
-            TagLib::MPEG::File ID3file(gd_string_to_filename(audio_filepath));
-            if (!ID3file.isOpen()) { return rating_data; }
-
-            TagLib::ID3v2::Tag* ID3Tag = ID3file.ID3v2Tag();
+            TagLib::MPEG::File mpeg_file(gd_string_to_filename(audio_filepath));
+            if (!mpeg_file.isValid() || !mpeg_file.hasID3v2Tag()) { return rating_data; }
+            TagLib::ID3v2::Tag* ID3Tag = mpeg_file.ID3v2Tag();
             TagLib::ID3v2::FrameList RatingFrames = ID3Tag->frameListMap()["POPM"];
             if (RatingFrames.size() > 0) {
                 TagLib::ID3v2::PopularimeterFrame* RatingFrame = static_cast<TagLib::ID3v2::PopularimeterFrame*>(RatingFrames[0]);
@@ -1223,6 +1339,30 @@ public:
             }
         }
         return rating_data;
+    }
+
+
+    bool add_property(godot::String audio_filepath, godot::String field_id, godot::String field_data) {
+        godot::String filetype = get_file_extension(audio_filepath);
+
+        std::map<std::string, std::string> field_identifiers = {
+            {"COMPOSER", "TCOM"},
+            {"ALBUM", "TALB"}
+        };
+
+        if (filetype == "OGG") {
+            return OGG_VORBIS().set_field(audio_filepath, field_id, field_data);
+        }
+        else if(filetype == "FLAC") {
+            return FLAC().set_property(audio_filepath, field_id, field_data);
+        }
+        else if (filetype == "MP3" || filetype == "WAV") {
+            return MPEG().set_text_identification_frame(audio_filepath, field_identifiers.at(field_id.alloc_c_string()).c_str(), field_data);
+        }
+        else if (filetype == "MP4" || filetype == "M4A") {
+            return MP4().set_item(audio_filepath, field_id, field_data);
+        }
+        return false;
     }
 };
 
