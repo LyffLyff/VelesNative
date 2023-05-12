@@ -31,6 +31,7 @@
 #include <tpropertymap.h>
 #include <fstream>
 
+
 // Global Variables
 std::map<std::string, std::string> field_identifiers = {
     {"COMPOSER", "TCOM"},
@@ -378,8 +379,18 @@ class OGG_FLAC : public godot::Reference {
             "WWWAUDIOFILE"
     };
 public:
-    static void _register_methods() {}
+    static void _register_methods() {
+        register_method("get_property_ids", &OGG_FLAC::get_property_ids);
+    }
     void _init() {}
+
+    godot::PoolStringArray get_property_ids() {
+        godot::PoolStringArray ids;
+        for (size_t i = 0; i < property_ids.size(); i++) {
+            ids.push_back(property_ids[i].c_str());
+        }
+        return ids;
+    }
 };
 
 
@@ -526,7 +537,7 @@ public:
         if (mpeg_tag->isEmpty()) { return false; }
 
         mpeg_tag->removeFrames("APIC");
-        return mpeg_file.save();;
+        return mpeg_file.save();
     }
 
 
@@ -604,7 +615,6 @@ public:
     bool set_text_frames(godot::String mp3_filepath, godot::PoolStringArray frame_ids, godot::PoolStringArray values) {
         TagLib::MPEG::File mp3_file(gd_string_to_filename(mp3_filepath));
         if (!mp3_file.isValid() || mp3_file.readOnly()) {
-            godot::Godot::print_error("Error opening MP3 file", __FUNCTION__, __FILE__, __LINE__);
             return false;
         }
 
@@ -686,17 +696,9 @@ public:
         godot::Dictionary properties = {};
 
         TagLib::ID3v2::FrameListMap frame_map = mpeg_tag->frameListMap();
-        TagLib::ID3v2::FrameList temp_frames;
 
-        for (auto it = field_identifiers.begin(); it != field_identifiers.end(); it++) {
-            // Get Frame Data
-            temp_frames = frame_map[field_identifiers[it->first].c_str()];
-
-            // Append String representation of frame if it exists
-            if (temp_frames.size() > 0) {
-                godot::Godot::print(it->first.c_str());
-                properties[field_identifiers[it->first].c_str()] = temp_frames[0]->toString().toCString(true);
-            }
+        for (auto it = frame_map.begin(); it != frame_map.end(); it++) {
+            properties[it->first.data()] = it->second[0]->toString().toCString(true);
         }
 
         return properties;
@@ -715,13 +717,8 @@ public:
         TagLib::ID3v2::FrameList id_frames = mpeg_tag->frameListMap()[frame_id.alloc_c_string()];
 
         if (id_frames.size() > 0) {
-            godot::Godot::print("FOUND SOMETHINGF");
             frame_value = id_frames[0]->toString().toCString(true);
         }
-        else {
-            godot::Godot::print("FOUND NOTHING");
-        }
-
 
         return frame_value;
     }
@@ -736,10 +733,7 @@ public:
 
         TagLib::ID3v2::FrameListMap frame_map = mpeg_tag->frameListMap();
 
-        godot::Godot::print("REMOEOEOEMEOMEO");
-
         if (frame_map[frame_id.alloc_c_string()].size() > 0) {
-            godot::Godot::print("REMOEOEOEMEOMEO");
             mpeg_tag->removeFrame(frame_map[frame_id.alloc_c_string()][0], true);
         }
 
@@ -926,8 +920,8 @@ public:
         if (vorbis_tag == NULL) { return fields; };
 
         TagLib::PropertyMap properties_map = vorbis_tag->properties();
-        TagLib::PropertyMap::ConstIterator it;
-        for (it = properties_map.begin(); it != properties_map.end(); ++it) {
+
+        for (auto it = properties_map.begin(); it != properties_map.end(); ++it) {
             fields[it->first.toCString(true)] = it->second.front().toCString(true);
         }
 
@@ -1056,15 +1050,12 @@ public:
     godot::Dictionary get_all_fields(godot::String audio_filepath) {
         godot::Dictionary fields = {};
 
-        TagLib::FLAC::File vorbis_file(gd_string_to_filename(audio_filepath));
-        if (!vorbis_file.isValid()) { return fields; };
+        TagLib::FLAC::File flac_file(gd_string_to_filename(audio_filepath));
+        if (!flac_file.isValid()) { return fields; };
 
-        TagLib::Tag* flac_tag = vorbis_file.tag();
-        if (flac_tag == NULL) { return fields; };
+        TagLib::Ogg::FieldListMap field_map = flac_file.xiphComment()->fieldListMap();
 
-        TagLib::PropertyMap properties_map = flac_tag->properties();
-        TagLib::PropertyMap::ConstIterator it;
-        for (it = properties_map.begin(); it != properties_map.end(); ++it) {
+        for (auto it = field_map.begin(); it != field_map.end(); ++it) {
             fields[it->first.toCString(true)] = it->second.front().toCString(true);
         }
 
@@ -1073,17 +1064,12 @@ public:
 
 
     bool set_field(godot::String audio_filepath, godot::String field_id, godot::String field_data) {
-        TagLib::FLAC::File vorbis_file(gd_string_to_filename(audio_filepath));
-        if (!vorbis_file.isValid()) { return false; };
+        TagLib::FLAC::File flac_file(gd_string_to_filename(audio_filepath));
+        if (!flac_file.isValid()) { return false; };
 
-        TagLib::Tag* flac_tag = vorbis_file.tag();
-        if (flac_tag == NULL) { return false; };
+        flac_file.xiphComment(true)->addField(field_id.alloc_c_string(), field_data.alloc_c_string(), true);
 
-        TagLib::PropertyMap new_properties;
-        new_properties.insert(field_id.alloc_c_string(), TagLib::StringList(field_data.alloc_c_string()));
-        flac_tag->setProperties(new_properties);
-
-        return vorbis_file.save();
+        return flac_file.save();
     }
 
 
@@ -1155,6 +1141,38 @@ public:
 
 class MP4 : public godot::Reference {
     GODOT_CLASS(MP4, godot::Reference)
+    
+    std::vector<std::string> item_keys = {
+        "nam",
+        "day",
+        "cpy",
+        "ART",
+        "aART",
+        "aut",
+        "wrt",
+        "alb",
+        "desc",
+        "des",
+        "cmt",
+        "ldes",
+        "gen",
+        "mak",
+        "mod",
+        "xyz",
+        "grp",
+        "tvsh",
+        "tven",
+        "tves",
+        "tvsn",
+        "lyr",
+        "cpil",
+        "tvnn",
+        "stik",
+        "hdvd",
+        "pgap",
+        "swr",
+        "too"
+    };
 
 public:
     static void _register_methods() {
@@ -1166,9 +1184,18 @@ public:
         register_method("get_embedded_cover_count", &MP4::get_embedded_cover_count);
         register_method("remove_tag", &MP4::remove_tag);
         register_method("set_item", &MP4::set_item);
+        register_method("get_item_keys", &MP4::get_item_keys);
     }
 
     void _init() {
+    }
+
+    godot::PoolStringArray get_item_keys() {
+        godot::PoolStringArray keys;
+        for (size_t i = 0; i < item_keys.size(); i++) {
+            keys.push_back(item_keys.at(i).c_str());
+        }
+        return keys;
     }
 
     godot::PoolByteArray get_cover(godot::String filepath, unsigned int cover_idx) {
@@ -1304,70 +1331,18 @@ public:
         TagLib::MP4::Tag* mp4_tag = mp4_file.tag();
         if (mp4_tag == NULL) { return false; }
 
-        const char* mp4_metadata_keys[] = {
-            "©alb",
-            "©art",
-            "aART",
-            "©cmt",
-            "©nam",
-            "©ART",
-            "aART",
-            "©alb",
-            "©grp",
-            "©wrt",
-            "©cmt",
-            "gnre",
-            "©gen",
-            "©day",
-            "trkn",
-            "disk",
-            "tmpo",
-            "cpil",
-            "tvsh",
-            "tven",
-            "tvsn",
-            "tves",
-            "tvnn",
-            "desc",
-            "ldes",
-            "©lyr",
-            "sonm",
-            "soar",
-            "soaa",
-            "soal",
-            "soco",
-            "sosn",
-            "covr",
-            "cprt",
-            "©too",
-            "©enc",
-            "purd",
-            "pcst",
-            "purl",
-            "keyw",
-            "catg",
-            "hdvd",
-            "stik",
-            "rtng",
-            "pgap",
-            "apID",
-            "akID",
-            "cnID",
-            "sfID",
-            "atID",
-            "plID",
-            "geID",
-            "©st3",
-        };
-
-
-        godot::Godot::print(item_key);
-        godot::Godot::print(item_value);
-
-        mp4_tag->setItem(item_key.alloc_c_string(), TagLib::StringList(item_value.alloc_c_string()));
+        if (item_value == "") {
+            mp4_tag->removeItem(item_key.alloc_c_string());
+        }
+        else {
+            godot::Godot::print(item_key);
+            mp4_tag->removeItem(item_key.utf8().get_data());
+            mp4_tag->setItem(item_key.utf8().get_data(), TagLib::StringList(item_value.alloc_c_string()));
+        }
 
         return mp4_file.save();
     }
+
 
     godot::String get_single_item(godot::String audio_filepath, godot::String item_identifier) {
         godot::String item_value = "";
@@ -1475,7 +1450,6 @@ public:
         register_method("export_all_embedded_covers", &Tagging::export_all_embedded_covers);
         register_method("get_text_properties", &Tagging::get_text_properties);
         register_method("get_single_text_property", &Tagging::get_single_text_property);
-        register_method("clear_text_property", &Tagging::clear_text_property);
         register_method("remove_text_property", &Tagging::remove_text_property);
         register_method("set_text_properties", &Tagging::set_text_properties);
         register_method("get_image_properties", &Tagging::get_image_properties);
@@ -1766,31 +1740,16 @@ public:
         godot::String filetype = get_file_extension(audio_filepath);
 
         if (filetype == "MP3" || filetype == "WAV") {
-            MPEG().remove_text_frame(audio_filepath, field_identifiers[property_identifier.alloc_c_string()].c_str());
+            MPEG().remove_text_frame(audio_filepath, property_identifier.alloc_c_string());
         }
-        else if (filetype == "OGG" || filetype == "FLAC") {
-            OGG_VORBIS().get_all_fields(audio_filepath);
+        else if (filetype == "OGG") {
+            OGG_VORBIS().set_field(audio_filepath, property_identifier.alloc_c_string(), "");
         }
-        else if (filetype == "MP4" || filetype == "M4A") {
-            MP4().get_all_items(audio_filepath);
-        }
-    }
-
-
-    void clear_text_property(godot::String audio_filepath, godot::String property_identifier) {
-        // The property_identifier is expected to be in the right format depending on the file format
-
-        godot::String filetype = get_file_extension(audio_filepath);
-
-        if (filetype == "MP3" || filetype == "WAV") {
-
-            MPEG().set_text_frames(audio_filepath, godot::PoolStringArray(), godot::PoolStringArray());
-        }
-        else if (filetype == "OGG" || filetype == "FLAC") {
-            OGG_VORBIS().set_field(audio_filepath, property_identifier, "");
+        else if (filetype == "FLAC") {
+            FLAC().set_field(audio_filepath, property_identifier.alloc_c_string(), "");
         }
         else if (filetype == "MP4" || filetype == "M4A") {
-            MP4().set_item(audio_filepath, property_identifier, "");
+            MP4().set_item(audio_filepath, property_identifier.alloc_c_string(), "");
         }
     }
 
@@ -2240,12 +2199,11 @@ public:
         if (filetype == "MP3" || filetype == "WAV") {
             return MPEG().get_text_frame_ids(audio_filepath);
         }
-        else {
-            godot::PoolStringArray field_ids = godot::PoolStringArray();
-            for (auto it = field_identifiers.begin(); it != field_identifiers.end(); it++) {
-                field_ids.push_back(it->first.c_str());
-            }
-            return field_ids;
+        else if (filetype == "OGG" || filetype == "FLAC") {
+            return OGG_FLAC().get_property_ids();
+        }
+        else if (filetype == "M4A") {
+            return MP4().get_item_keys();
         }
         return godot::PoolStringArray();
     }
