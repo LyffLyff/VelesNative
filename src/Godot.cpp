@@ -911,7 +911,6 @@ public:
     bool add_cover(godot::String dst_path, godot::String src_path) {
         ImageFile image(gd_string_to_filename(src_path));
         if (!image.isOpen()) {
-            godot::Godot::print("ERROR://MP4, Could not open Image");
             return false;
         }
         TagLib::MP4::CoverArt new_coverart(TagLib::MP4::CoverArt::Format::Unknown, image.data());
