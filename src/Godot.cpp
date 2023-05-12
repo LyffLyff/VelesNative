@@ -1479,7 +1479,7 @@ public:
         register_method("remove_text_property", &Tagging::remove_text_property);
         register_method("set_text_properties", &Tagging::set_text_properties);
         register_method("get_image_properties", &Tagging::get_image_properties);
-        register_method("get_properties_identifiers", &Tagging::get_properties_identifiers);
+        register_method("get_property_identifiers", &Tagging::get_property_identifiers);
     }
 
     void _init() {
@@ -2235,7 +2235,7 @@ public:
         }
     }
 
-    godot::PoolStringArray get_properties_identifiers(godot::String audio_filepath) {
+    godot::PoolStringArray get_property_identifiers(godot::String audio_filepath) {
         godot::String filetype = get_file_extension(audio_filepath);
         if (filetype == "MP3" || filetype == "WAV") {
             return MPEG().get_text_frame_ids(audio_filepath);
