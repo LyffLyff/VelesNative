@@ -243,10 +243,9 @@ godot::String add_number_to_string(godot::String filepath, unsigned short number
 }
 
 
-bool save_buffer_to_file(godot::String dst_path, TagLib::ByteVector&& data) {
+bool save_buffer_to_file(godot::String dst_path, TagLib::ByteVector data) {
     std::ofstream out(dst_path.alloc_c_string(), std::ios::binary);
     out.write(data.data(), data.size());
-    godot::Godot::print(data.size());
     out.close();
     return true;
 }
@@ -566,7 +565,7 @@ public:
             temp_header.resize(BUFFER_SIZE);
             memcpy(temp_header.data(), image_data.data(), BUFFER_SIZE);
             // with added number
-            if (!save_buffer_to_file(add_number_to_string(dst_filepath, counter) + get_extension_from_header(temp_header), image_data.data())) {
+            if (!save_buffer_to_file(add_number_to_string(dst_filepath, counter) + get_extension_from_header(temp_header), image_data)) {
                 return false;
             }
             counter++;
@@ -588,7 +587,7 @@ public:
 
         TagLib::ByteVector image_data = static_cast<TagLib::ID3v2::AttachedPictureFrame*> (listOfMp3Frames[cover_idx])->picture();
 
-        return save_buffer_to_file(dst_filepath, image_data.data());
+        return save_buffer_to_file(dst_filepath, image_data);
     }
 
 
